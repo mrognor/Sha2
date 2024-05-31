@@ -60,11 +60,11 @@ std::string Uint32ToHexForm(std::uint32_t a) noexcept
 
     \return Returns a string with the correct padding of length 64 or 128, depending on the length of the source data
 */
-inline std::vector<unsigned char> DataPadding_MD5(const char* data, const std::size_t& dataLen, const std::size_t& sourceLen) noexcept
+inline std::vector<char> DataPadding_Sha2(const char* data, const std::size_t& dataLen, const std::size_t& sourceLen) noexcept
 {
     // String length in bytes
     std::uint64_t stringLength = sourceLen * 8;
-    std::vector<unsigned char> padding;
+    std::vector<char> padding;
 
     // Set known padding
     for (std::size_t i = 0; i < dataLen; ++i)
@@ -85,11 +85,13 @@ inline std::vector<unsigned char> DataPadding_MD5(const char* data, const std::s
     while (stringLength / 256 > 0)
     {
         stringAddition.emplace_back(static_cast<char>(stringLength % 256));
+        std::cout << stringLength % 256 << std::endl;
         stringLength /= 256;
     } 
 
     // Add last byte to stringAddition
     stringAddition.emplace_back(static_cast<char>(stringLength % 256));
+    std::cout << stringLength % 256 << std::endl;
 
     // Add zero bytes to padding    
     for (unsigned int i = 0; i < 8 - stringAddition.size(); ++i)
@@ -98,47 +100,35 @@ inline std::vector<unsigned char> DataPadding_MD5(const char* data, const std::s
     // Adding string addition chars to source string in right order
     // At first we add 4 last bytes(chars). After that we add 4 first bytes(chars).
     // Also this function change bytes position to next function CalculateHastStep_MD5
-    for (std::size_t i = 0; i != stringAddition.size(); ++i)
+    for (std::size_t i = stringAddition.size() - 1; i != 0; --i)
         padding.emplace_back(stringAddition[i]);
+        
+    padding.emplace_back(stringAddition[0]);
 
     return padding;
 }
 
-std::string HashSha2(const char* data, const std::size_t dataLen)
+void Sha2Step(const char* data, const std::size_t& dataPos, std::uint32_t& h0, std::uint32_t& h1, std::uint32_t& h2, std::uint32_t& h3, std::uint32_t& h4, std::uint32_t& h5, std::uint32_t& h6, std::uint32_t& h7)
 {
-    // Begin hash values
-    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-
-    std::vector<unsigned char> dataToHash = DataPadding_MD5(data, dataLen, dataLen);
-
+    // Words array
     std::uint32_t words[64] = {0};
-    for (int i = 0; i < 64; i += 4)
-        words[i >> 2] = (static_cast<std::uint32_t>(dataToHash[i]) << 24) | (static_cast<std::uint32_t>(dataToHash[i + 1]) << 16) |
-            (static_cast<std::uint32_t>(dataToHash[i + 2]) << 8) | static_cast<std::uint32_t>(dataToHash[i + 3]);
 
-    // s0 = (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)
-    // s1 = (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)
-    // w[i] = w[i-16] + s0 + w[i-7] + s1
+    // Join 4 chars from data into 16 uint32_t numbers and save it to words array
+    for (int i = 0; i < 64; i += 4)
+        words[i >> 2] = (static_cast<std::uint32_t>(static_cast<unsigned char>(data[i + dataPos])) << 24) | 
+            (static_cast<std::uint32_t>(static_cast<unsigned char>(data[i + 1 + dataPos])) << 16) |
+            (static_cast<std::uint32_t>(static_cast<unsigned char>(data[i + 2 + dataPos])) << 8) | 
+            static_cast<std::uint32_t>(static_cast<unsigned char>(data[i + 3 + dataPos]));
+
+    // Fill last 48 uint32_t numbers
     for (int i = 16; i < 64; ++i)
         words[i] = words[i - 16] + (RightRotate(words[i - 15], 7) ^ RightRotate(words[i - 15], 18) ^ (words[i - 15] >> 3)) +
             words[i - 7] + (RightRotate(words[i - 2], 17) ^ RightRotate(words[i - 2], 19) ^ (words[i - 2] >> 10));
 
+    // Temple variables
     std::uint32_t a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
 
-    // S1 = (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25)
-    // ch = (e and f) xor ((not e) and g)
-    // temp1 = h + S1 + ch + k[i] + w[i]
-    // S0 = (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22)
-    // maj = (a and b) xor (a and c) xor (b and c)
-    // temp2 := S0 + maj
-    // h = g
-    // g = f
-    // f = e
-    // e = d + temp1
-    // d = c
-    // c = b
-    // b = a
-    // a = temp1 + temp2
+    // 64 rounds to calculate hash for data block
     std::uint32_t temp1, temp2;
     for (int i = 0; i < 64; ++i)
     {
@@ -155,15 +145,23 @@ std::string HashSha2(const char* data, const std::size_t dataLen)
     h5 += f;
     h6 += g;
     h7 += h;
+}
 
-    std::cout << Uint32ToHexForm(h0) << std::endl;
-    std::cout << Uint32ToHexForm(h1) << std::endl;
-    std::cout << Uint32ToHexForm(h2) << std::endl;
-    std::cout << Uint32ToHexForm(h3) << std::endl;
-    std::cout << Uint32ToHexForm(h4) << std::endl;
-    std::cout << Uint32ToHexForm(h5) << std::endl;
-    std::cout << Uint32ToHexForm(h6) << std::endl;
-    std::cout << Uint32ToHexForm(h7) << std::endl;
+std::string HashSha2(const char* data, const std::size_t& dataLen)
+{
+    // Begin hash values
+    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+
+    for (std::size_t i = 0; i < dataLen >> 6; ++i)
+        Sha2Step(data, i << 6, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Padding source string
+    std::vector<char> padding = DataPadding_Sha2(data + (dataLen & ~0b00111111), dataLen & 0b00111111, dataLen);
+
+    Sha2Step(padding.data(), 0, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    if (padding.size() > 64)
+        Sha2Step(padding.data(), 64, h0, h1, h2, h3, h4, h5, h6, h7);
 
     return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
 }
@@ -176,7 +174,7 @@ std::string HashSha2(const std::string& str)
 
 int main()
 {
-    std::cout << HashSha2("hello world") << std::endl;
+    std::cout << HashSha2("`1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm,./~!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:|ZXCVBNM<>? And some additional text to more changes and tests") << std::endl;
 }
 
 // b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9
