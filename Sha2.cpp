@@ -2,8 +2,11 @@
 #include <vector>
 #include <cstdint>
 #include <iostream>
+#include <fstream>
 
-#include <bitset>
+// Define the block size for working with files
+// Must be multiple 64
+#define CHUNK_SIZE 4096
 
 /// \brief Sha2 constants
 const std::uint32_t K[64] = {
@@ -85,13 +88,11 @@ inline std::vector<char> DataPadding_Sha2(const char* data, const std::size_t& d
     while (stringLength / 256 > 0)
     {
         stringAddition.emplace_back(static_cast<char>(stringLength % 256));
-        std::cout << stringLength % 256 << std::endl;
         stringLength /= 256;
     } 
 
     // Add last byte to stringAddition
     stringAddition.emplace_back(static_cast<char>(stringLength % 256));
-    std::cout << stringLength % 256 << std::endl;
 
     // Add zero bytes to padding    
     for (unsigned int i = 0; i < 8 - stringAddition.size(); ++i)
@@ -171,10 +172,66 @@ std::string HashSha2(const std::string& str)
     return HashSha2(str.c_str(), str.length());
 }
 
+std::string Sha2File(const std::string& fileName) noexcept
+{
+    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    // Save file size
+    uint64_t fileSize = file.tellg();
+    file.seekg(0);
+
+    // Arrays to read 4kb from file and to save 4 kb to file
+    char fileDataChunk[CHUNK_SIZE];
+
+    // Counter for file reading
+    std::size_t counter = 0;
+
+    // Checking whether the file is larger than the size of the file processing chunks
+    if (fileSize > CHUNK_SIZE)
+    {
+        // Processing the part of the file that is a multiple of the chunk size
+        for(; counter < fileSize - CHUNK_SIZE; counter += CHUNK_SIZE)
+        {
+            // Read chunk from input file
+            file.read(fileDataChunk, CHUNK_SIZE);
+
+            for (std::size_t i = 0; i < CHUNK_SIZE; i += 64)
+                Sha2Step(fileDataChunk, i, h0, h1, h2, h3, h4, h5, h6, h7);
+        }
+    }
+
+    // Calculating the remaining bytes in the file
+    counter = fileSize - counter;
+
+    // Read last bytes from input file
+    file.read(fileDataChunk, counter);
+
+    // Calculate hash for last bytes
+    for (uint64_t i = 0; i < counter / 64; ++i)
+        Sha2Step(fileDataChunk, i * 64, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Padding source file
+    // Move fileDataChunk ptr to last position multiply by 64
+    std::vector<char> padding = DataPadding_Sha2(fileDataChunk + (counter & ~0b00111111), counter & 0b00111111, fileSize);
+
+    Sha2Step(padding.data(), 0, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    if (padding.size() > 64)
+        Sha2Step(padding.data(), 64, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return changed initial uints converted to string with hex form
+    return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
+}
 
 int main()
 {
     std::cout << HashSha2("`1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm,./~!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:|ZXCVBNM<>? And some additional text to more changes and tests") << std::endl;
+
+    std::cout << Sha2File("Sha2.cpp") << std::endl;
 }
 
 // b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9
