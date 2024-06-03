@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <iostream>
 #include <fstream>
+#include <cstring>
+#include <bitset>
 
 // Define the block size for working with files
 // Must be multiple 64
@@ -63,50 +65,44 @@ std::string Uint32ToHexForm(std::uint32_t a) noexcept
 
     \return Returns a string with the correct padding of length 64 or 128, depending on the length of the source data
 */
-inline std::vector<char> DataPadding_Sha2(const char* data, const std::size_t& dataLen, const std::size_t& sourceLen) noexcept
+int DataPadding_Sha2(const char* data, const std::size_t& dataLen, const std::size_t& sourceLen, char* destination)
 {
-    // String length in bytes
-    std::uint64_t stringLength = sourceLen * 8;
-    std::vector<char> padding;
+    // Variable to store padding length
+    int res;
 
-    // Set known padding
-    for (std::size_t i = 0; i < dataLen; ++i)
-        padding.emplace_back(data[i]);
-
-    // Add one 1 bit and seven 0 bits to data end. It's equals adding 10000000 or 128 symbol to string end
-    padding.emplace_back(128);
-
-    // Adding additional bits to make data length equal 512*N + 448, or in chars 64*N + 56
-    // Adding eight 0 bits to data end. It's equals adding 00000000 or 0 symbol to string end
-    while (padding.size() % 64 != 56)
-        padding.emplace_back('\0');
+    // Copy bytes from data to destination
+    memcpy(destination, data, dataLen);
     
-    // String with source string size
-    std::vector<char> stringAddition;
+    // Set first padding bit to 1
+    destination[dataLen] = 0b10000000;
 
-    // Pushing symbols to string. Equals 256 based count system
-    while (stringLength / 256 > 0)
+    // Data length in bits
+    std::uint64_t bitsLength = sourceLen * 8;
+
+    // Check if padding have to be 128 bits
+    if (dataLen < 56)
+        res = 64;
+    else
+        res = 128;
+
+    // Handle last 8 bytes in padding
+    int i = 0;
+    for (; i < 8; ++i)
     {
-        stringAddition.emplace_back(static_cast<char>(stringLength % 256));
-        stringLength /= 256;
-    } 
+        // Set 63 - i or 127 - i byte in padding value of right 8 bits from bits length
+        destination[res - 1 - i] = bitsLength & 0b11111111;
 
-    // Add last byte to stringAddition
-    stringAddition.emplace_back(static_cast<char>(stringLength % 256));
+        // Move 8 right bits from bits length
+        bitsLength >>= 8;
 
-    // Add zero bytes to padding    
-    for (unsigned int i = 0; i < 8 - stringAddition.size(); ++i)
-        padding.emplace_back('\0'); 
+        // If bits length equals 0 then break
+        if (bitsLength == 0) break;
+    }
 
-    // Adding string addition chars to source string in right order
-    // At first we add 4 last bytes(chars). After that we add 4 first bytes(chars).
-    // Also this function change bytes position to next function CalculateHastStep_MD5
-    for (std::size_t i = stringAddition.size() - 1; i != 0; --i)
-        padding.emplace_back(stringAddition[i]);
-        
-    padding.emplace_back(stringAddition[0]);
+    // Set 0 byte to all unfilled positions
+    memset(destination + dataLen + 1, 0, res - dataLen - i - 2);
 
-    return padding;
+    return res;
 }
 
 void Sha2Step(const char* data, const std::size_t& dataPos, std::uint32_t& h0, std::uint32_t& h1, std::uint32_t& h2, std::uint32_t& h3, std::uint32_t& h4, std::uint32_t& h5, std::uint32_t& h6, std::uint32_t& h7)
@@ -138,14 +134,7 @@ void Sha2Step(const char* data, const std::size_t& dataPos, std::uint32_t& h0, s
         h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
     }
 
-    h0 += a;
-    h1 += b;
-    h2 += c;
-    h3 += d;
-    h4 += e;
-    h5 += f;
-    h6 += g;
-    h7 += h;
+    h0 += a, h1 += b, h2 += c, h3 += d, h4 += e, h5 += f, h6 += g, h7 += h;
 }
 
 std::string HashSha2(const char* data, const std::size_t& dataLen)
@@ -157,12 +146,13 @@ std::string HashSha2(const char* data, const std::size_t& dataLen)
         Sha2Step(data, i << 6, h0, h1, h2, h3, h4, h5, h6, h7);
 
     // Padding source string
-    std::vector<char> padding = DataPadding_Sha2(data + (dataLen & ~0b00111111), dataLen & 0b00111111, dataLen);
+    char padding[128];
+    int paddingLen = DataPadding_Sha2(data + (dataLen & ~0b00111111), dataLen & 0b00111111, dataLen, padding);
 
-    Sha2Step(padding.data(), 0, h0, h1, h2, h3, h4, h5, h6, h7);
+    Sha2Step(padding, 0, h0, h1, h2, h3, h4, h5, h6, h7);
 
-    if (padding.size() > 64)
-        Sha2Step(padding.data(), 64, h0, h1, h2, h3, h4, h5, h6, h7);
+    if (paddingLen == 128)
+        Sha2Step(padding, 64, h0, h1, h2, h3, h4, h5, h6, h7);
 
     return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
 }
@@ -216,12 +206,13 @@ std::string Sha2File(const std::string& fileName) noexcept
 
     // Padding source file
     // Move fileDataChunk ptr to last position multiply by 64
-    std::vector<char> padding = DataPadding_Sha2(fileDataChunk + (counter & ~0b00111111), counter & 0b00111111, fileSize);
+    char padding[128];
+    int paddingLen = DataPadding_Sha2(fileDataChunk + (counter & ~0b00111111), counter & 0b00111111, fileSize, padding);
 
-    Sha2Step(padding.data(), 0, h0, h1, h2, h3, h4, h5, h6, h7);
+    Sha2Step(padding, 0, h0, h1, h2, h3, h4, h5, h6, h7);
 
-    if (padding.size() > 64)
-        Sha2Step(padding.data(), 64, h0, h1, h2, h3, h4, h5, h6, h7);
+    if (paddingLen == 128)
+        Sha2Step(padding, 64, h0, h1, h2, h3, h4, h5, h6, h7);
 
     // Return changed initial uints converted to string with hex form
     return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
