@@ -80,7 +80,7 @@ std::string Uint32ToHexForm(std::uint32_t a) noexcept
 
     \return returns the length of the padding. 64 if the length of the source data was less than 56, otherwise it will return 128
 */
-int DataPadding_Sha2(const char* data, const std::size_t& dataLen, const std::size_t& sourceLen, char* destination) noexcept
+int DataPaddingSha2(const char* data, const std::size_t& dataLen, const std::size_t& sourceLen, char* destination) noexcept
 {
     // Variable to store padding length
     int res;
@@ -173,22 +173,24 @@ void Sha2Step(const char* data, const std::size_t& offset, std::uint32_t& h0, st
     \brief A function for calculating the hash sum using the sha2 algorithm
 
     \param [in] data a pointer to the array to calculate the hash for
-    \param [in] dataLen data array length
-
-    \return a string with a sha2 hash sum
+    \param [in, out] h0 internal state variable 0
+    \param [in, out] h1 internal state variable 1
+    \param [in, out] h2 internal state variable 2
+    \param [in, out] h3 internal state variable 3
+    \param [in, out] h4 internal state variable 4
+    \param [in, out] h5 internal state variable 5
+    \param [in, out] h6 internal state variable 6
+    \param [in, out] h7 internal state variable 7
 */
-std::string HashSha2(const char* data, const std::size_t& dataLen) noexcept
+void Sha2(const char* data, const std::size_t& dataLen, std::uint32_t& h0, std::uint32_t& h1, std::uint32_t& h2, std::uint32_t& h3, std::uint32_t& h4, std::uint32_t& h5, std::uint32_t& h6, std::uint32_t& h7)
 {
-    // Begin hash values
-    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-
     // Handle 64 byte chunks
     for (std::size_t i = 0; i < dataLen >> 6; ++i)
         Sha2Step(data, i << 6, h0, h1, h2, h3, h4, h5, h6, h7);
 
     // Padding source data
     char padding[128];
-    int paddingLen = DataPadding_Sha2(data + (dataLen & ~0b00111111), dataLen & 0b00111111, dataLen, padding);
+    int paddingLen = DataPaddingSha2(data + (dataLen & ~0b00111111), dataLen & 0b00111111, dataLen, padding);
 
     // Calculate hash for padded data
     Sha2Step(padding, 0, h0, h1, h2, h3, h4, h5, h6, h7);
@@ -196,32 +198,23 @@ std::string HashSha2(const char* data, const std::size_t& dataLen) noexcept
     // If padding length is 128 then calculate hash for last block
     if (paddingLen == 128)
         Sha2Step(padding, 64, h0, h1, h2, h3, h4, h5, h6, h7);
-
-    // Return calculated hash
-    return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
 }
 
 /**
-    \brief A function for calculating the hash sum using the sha2 algorithm
+    \brief A function for calculating the file hash sum using the sha2 algorithm
 
-    \param [in] str the string to calculate the hash for
-
-    \return a string with a sha2 hash sum
+    \param [in] file ifstream object with a file to calculate the hash for
+    \param [in, out] h0 internal state variable 0
+    \param [in, out] h1 internal state variable 1
+    \param [in, out] h2 internal state variable 2
+    \param [in, out] h3 internal state variable 3
+    \param [in, out] h4 internal state variable 4
+    \param [in, out] h5 internal state variable 5
+    \param [in, out] h6 internal state variable 6
+    \param [in, out] h7 internal state variable 7
 */
-std::string HashSha2(const std::string& str) noexcept
+void FileSha2(std::ifstream& file, std::uint32_t& h0, std::uint32_t& h1, std::uint32_t& h2, std::uint32_t& h3, std::uint32_t& h4, std::uint32_t& h5, std::uint32_t& h6, std::uint32_t& h7)
 {
-    return HashSha2(str.c_str(), str.length());
-}
-
-std::string Sha2File(const std::string& fileName) noexcept
-{
-    // Begin hash values
-    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-
-    // Open file
-    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
-    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
-
     // Save file size
     uint64_t fileSize = file.tellg();
     file.seekg(0);
@@ -260,7 +253,7 @@ std::string Sha2File(const std::string& fileName) noexcept
     // Padding source file
     // Move fileDataChunk ptr to last position multiply by 64
     char padding[128];
-    int paddingLen = DataPadding_Sha2(fileDataChunk + (counter & ~0b00111111), counter & 0b00111111, fileSize, padding);
+    int paddingLen = DataPaddingSha2(fileDataChunk + (counter & ~0b00111111), counter & 0b00111111, fileSize, padding);
 
     // Calculate hash for padded data
     Sha2Step(padding, 0, h0, h1, h2, h3, h4, h5, h6, h7);
@@ -268,14 +261,125 @@ std::string Sha2File(const std::string& fileName) noexcept
     // If padding length is 128 then calculate hash for last block
     if (paddingLen == 128)
         Sha2Step(padding, 64, h0, h1, h2, h3, h4, h5, h6, h7);
+}
+
+/**
+    \brief A function for calculating the hash sum using the sha256 algorithm
+
+    \param [in] data a pointer to the array to calculate the hash for
+    \param [in] dataLen data array length
+
+    \return a string with a sha2 hash sum
+*/
+std::string Sha256(const char* data, const std::size_t& dataLen) noexcept
+{
+    // Begin hash values
+    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+
+    // Calculate hash
+    Sha2(data, dataLen, h0, h1, h2, h3, h4, h5, h6, h7);
 
     // Return calculated hash
     return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
 }
 
+/**
+    \brief A function for calculating the hash sum using the sha256 algorithm
+
+    \param [in] str the string to calculate the hash for
+
+    \return a string with a sha2 hash sum
+*/
+std::string Sha256(const std::string& str) noexcept
+{
+    return Sha256(str.c_str(), str.length());
+}
+
+/**
+    \brief A function for calculating the file hash sum using the sha256 algorithm
+
+    \param [in] fileName the string with file name to calculate hash for
+
+    \return a string with a sha2 hash sum
+*/
+std::string FileSha256(const std::string& fileName) noexcept
+{
+    // Begin hash values
+    std::uint32_t h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a, h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    // Calculate hash for file
+    FileSha2(file, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6) + Uint32ToHexForm(h7);
+}
+
+/**
+    \brief A function for calculating the hash sum using the sha224 algorithm
+
+    \param [in] data a pointer to the array to calculate the hash for
+    \param [in] dataLen data array length
+
+    \return a string with a sha2 hash sum
+*/
+std::string Sha224(const char* data, const std::size_t& dataLen) noexcept
+{
+    // Begin hash values
+    std::uint32_t h0 = 0xc1059ed8, h1 = 0x367cd507, h2 = 0x3070dd17, h3 = 0xf70e5939, h4 = 0xffc00b31, h5 = 0x68581511, h6 = 0x64f98fa7, h7 = 0xbefa4fa4;
+
+    // Calculate hash
+    Sha2(data, dataLen, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6);
+}
+
+/**
+    \brief A function for calculating the hash sum using the sha224 algorithm
+
+    \param [in] str the string to calculate the hash for
+
+    \return a string with a sha2 hash sum
+*/
+std::string Sha224(const std::string& str) noexcept
+{
+    return Sha224(str.c_str(), str.length());
+}
+
+/**
+    \brief A function for calculating the file hash sum using the sha224 algorithm
+
+    \param [in] fileName the string with file name to calculate hash for
+
+    \return a string with a sha2 hash sum
+*/
+std::string FileSha224(const std::string& fileName) noexcept
+{
+    // Begin hash values
+    std::uint32_t h0 = 0xc1059ed8, h1 = 0x367cd507, h2 = 0x3070dd17, h3 = 0xf70e5939, h4 = 0xffc00b31, h5 = 0x68581511, h6 = 0x64f98fa7, h7 = 0xbefa4fa4;
+
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    // Calculate hash for file
+    FileSha2(file, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint32ToHexForm(h0) + Uint32ToHexForm(h1) + Uint32ToHexForm(h2) + Uint32ToHexForm(h3) + Uint32ToHexForm(h4) + Uint32ToHexForm(h5) + Uint32ToHexForm(h6);
+}
+
 int main()
 {
-    std::cout << HashSha2("`1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm,./~!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:|ZXCVBNM<>? And some additional text to more changes and tests") << std::endl;
+    std::cout << Sha256("`1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm,./~!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:|ZXCVBNM<>? And some additional text to more changes and tests") << std::endl;
 
-    std::cout << Sha2File("Sha2.cpp") << std::endl;
+    std::cout << FileSha256("Sha2.cpp") << std::endl;
+
+    std::cout << Sha224("`1234567890-=qwertyuiop[]asdfghjkl;'zxcvbnm,./~!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:|ZXCVBNM<>? And some additional text to more changes and tests") << std::endl;
+
+    std::cout << FileSha224("Sha2.cpp") << std::endl;
 }
