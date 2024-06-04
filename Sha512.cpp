@@ -389,13 +389,127 @@ std::string FileSha384(const std::string& fileName) noexcept
     return Uint64ToHexForm(h0) + Uint64ToHexForm(h1) + Uint64ToHexForm(h2) + Uint64ToHexForm(h3) + Uint64ToHexForm(h4) + Uint64ToHexForm(h5);
 }
 
+/**
+    \brief A function for calculating the hash sum using the sha512/224 algorithm
+
+    \param [in] data a pointer to the array to calculate the hash for
+    \param [in] dataLen data array length
+
+    \return a string with a sha512/224 hash sum
+*/
+std::string Sha512_224(const char* data, const std::size_t& dataLen) noexcept
+{
+    // Begin hash values
+    std::uint64_t h0 = 0x8c3d37c819544da2, h1 = 0x73e1996689dcd4d6, h2 = 0x1dfab7ae32ff9c82, h3 = 0x679dd514582f9fcf, h4 = 0x0f6d2b697bd44da8, h5 = 0x77e36f7304c48942, h6 = 0x3f9d85a86a1d36c8, h7 = 0x1112e6ad91d692a1;
+
+    // Calculate hash
+    HashSha512(data, dataLen, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint64ToHexForm(h0) + Uint64ToHexForm(h1) + Uint64ToHexForm(h2) + Uint64ToHexForm(h3).substr(0, 8);
+}
+
+/**
+    \brief A function for calculating the hash sum using the sha512/224 algorithm
+
+    \param [in] str the string to calculate the hash for
+
+    \return a string with a sha512/224 hash sum
+*/
+std::string Sha512_224(const std::string& str) noexcept
+{
+    return Sha512_224(str.c_str(), str.length());
+}
+
+/**
+    \brief A function for calculating the file hash sum using the sha512/224 algorithm
+
+    \param [in] fileName the string with file name to calculate hash for
+
+    \return a string with a sha512/224 hash sum
+*/
+std::string FileSha512_224(const std::string& fileName) noexcept
+{
+    // Begin hash values
+    std::uint64_t h0 = 0x8c3d37c819544da2, h1 = 0x73e1996689dcd4d6, h2 = 0x1dfab7ae32ff9c82, h3 = 0x679dd514582f9fcf, h4 = 0x0f6d2b697bd44da8, h5 = 0x77e36f7304c48942, h6 = 0x3f9d85a86a1d36c8, h7 = 0x1112e6ad91d692a1;
+
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    // Calculate hash for file
+    HashFileSha512(file, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint64ToHexForm(h0) + Uint64ToHexForm(h1) + Uint64ToHexForm(h2) + Uint64ToHexForm(h3).substr(0, 8);
+}
+
+/**
+    \brief A function for calculating the hash sum using the sha512/256 algorithm
+
+    \param [in] data a pointer to the array to calculate the hash for
+    \param [in] dataLen data array length
+
+    \return a string with a sha512/256 hash sum
+*/
+std::string Sha512_256(const char* data, const std::size_t& dataLen) noexcept
+{
+    // Begin hash values
+    std::uint64_t h0 = 0x22312194fc2bf72c, h1 = 0x9f555fa3c84c64c2, h2 = 0x2393b86b6f53b151, h3 = 0x963877195940eabd, h4 = 0x96283ee2a88effe3, h5 = 0xbe5e1e2553863992, h6 = 0x2b0199fc2c85b8aa, h7 = 0x0eb72ddc81c52ca2;
+
+    // Calculate hash
+    HashSha512(data, dataLen, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint64ToHexForm(h0) + Uint64ToHexForm(h1) + Uint64ToHexForm(h2) + Uint64ToHexForm(h3);
+}
+
+/**
+    \brief A function for calculating the hash sum using the sha512/256 algorithm
+
+    \param [in] str the string to calculate the hash for
+
+    \return a string with a sha512/256 hash sum
+*/
+std::string Sha512_256(const std::string& str) noexcept
+{
+    return Sha512_256(str.c_str(), str.length());
+}
+
+/**
+    \brief A function for calculating the file hash sum using the sha512/256 algorithm
+
+    \param [in] fileName the string with file name to calculate hash for
+
+    \return a string with a sha512/256 hash sum
+*/
+std::string FileSha512_256(const std::string& fileName) noexcept
+{
+    // Begin hash values
+    std::uint64_t h0 = 0x22312194fc2bf72c, h1 = 0x9f555fa3c84c64c2, h2 = 0x2393b86b6f53b151, h3 = 0x963877195940eabd, h4 = 0x96283ee2a88effe3, h5 = 0xbe5e1e2553863992, h6 = 0x2b0199fc2c85b8aa, h7 = 0x0eb72ddc81c52ca2;
+
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    // Calculate hash for file
+    HashFileSha512(file, h0, h1, h2, h3, h4, h5, h6, h7);
+
+    // Return calculated hash
+    return Uint64ToHexForm(h0) + Uint64ToHexForm(h1) + Uint64ToHexForm(h2) + Uint64ToHexForm(h3);
+}
+
 int main()
 {
     std::cout << Sha512("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu") << std::endl;
 
-    std::cout << FileSha512("tex") << std::endl;
+    std::cout << FileSha512("Sha512.cpp") << std::endl;
 
     std::cout << Sha384("affa") << std::endl;
 
-    std::cout << FileSha384("tex") << std::endl;
+    std::cout << FileSha384("Sha512.cpp") << std::endl;
+
+    std::cout << Sha512_224("gsdhfd") << std::endl;
+
+    std::cout << Sha512_256("zasfasdgagov") << std::endl;
 }
