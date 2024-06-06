@@ -35,7 +35,7 @@ const std::uint64_t K[80] = {
 };
 
 /**
-    \brief A function for rotating a number
+    \brief A function for turning a number to the right
     
     The rotation of a number is equivalent to a cyclic shift of that number
 

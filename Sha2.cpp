@@ -23,7 +23,7 @@ const std::uint32_t K[64] = {
 };
 
 /**
-    \brief A function for rotating a number
+    \brief A function for turning a number to the right
     
     The rotation of a number is equivalent to a cyclic shift of that number
 
@@ -201,7 +201,7 @@ void HashSha256(const char* data, const std::size_t& dataLen, std::uint32_t& h0,
 }
 
 /**
-    \brief A function for calculating the file hash sum using the sha2 algorithm
+    \brief A function for calculating the file hash sum using the sha256 algorithm
 
     \param [in] file ifstream object with a file to calculate the hash for
     \param [in, out] h0 internal state variable 0
@@ -300,7 +300,7 @@ std::string Sha256(const std::string& str) noexcept
 
     \param [in] fileName the string with file name to calculate hash for
 
-    \return a string with a sha2 hash sum
+    \return a string with a sha256 hash sum
 */
 std::string FileSha256(const std::string& fileName) noexcept
 {
